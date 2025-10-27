@@ -2,50 +2,49 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier, plot_tree
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import os
+import sys
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.decomposition import PCA
-from ucimlrepo import fetch_ucirepo
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from data_loader import get_X, get_y_class
+from model_loader import load_model, load_train_test_splits, check_model_exists
 
 st.set_page_config(page_title="Classification Models", page_icon="🎯", layout="wide")
 
 st.title("🎯 Classification Models")
 
-# Load data
-@st.cache_data
-def load_data():
-    superconductivity_data = fetch_ucirepo(id=464)
-    X = superconductivity_data.data.features
-    y = superconductivity_data.data.targets
-    X = X.fillna(X.mean())
-    y = y.fillna(y.mean())
-    y_class = (y > y.median()).astype(int)
-    return X, y, y_class
+# Check if models are trained
+st.sidebar.subheader("⚙️ Model Status")
+if not check_model_exists('decision_tree'):
+    st.error("❌ Models not found! Please train models first.")
+    st.code("python train_all_models.py", language="bash")
+    st.stop()
+else:
+    st.sidebar.success("✅ All models ready!")
 
-X, y, y_class = load_data()
+# Load data
+X = get_X()
+y_class = get_y_class()
+
+# Load pre-computed splits
+splits = load_train_test_splits()
+X_train_c = splits['X_train_c']
+X_test_c = splits['X_test_c']
+y_train_c = splits['y_train_c']
+y_test_c = splits['y_test_c']
 
 st.markdown("""
 ## Objective: Classify Superconductor Types
 
-**Problem Statement:**
-Classify superconductors into HIGH-Tc (above median) and LOW-Tc (below median) categories.
+**All models are PRE-TRAINED - just loading and visualizing results!**
 
-**Societal Impact:**
-- HIGH-Tc superconductors are more practical (require less cooling)
-- Classification helps identify materials worth investing in
-- Guides research toward more economically viable superconductors
-- Essential for commercial applications in energy and healthcare
+Classification: HIGH-Tc (above median) vs LOW-Tc (below median)
 """)
-
-# Data split
-test_size = st.sidebar.slider("Test Set Size (%)", 10, 40, 20, key="class_split") / 100
-X_train, X_test, y_train, y_test = train_test_split(X, y_class, test_size=test_size, random_state=42)
 
 st.subheader("📊 Class Distribution")
 col1, col2, col3 = st.columns(3)
@@ -53,113 +52,88 @@ col1.metric("Total Samples", len(y_class))
 col2.metric("HIGH-Tc (Class 1)", int(y_class.sum().values[0]))
 col3.metric("LOW-Tc (Class 0)", len(y_class) - int(y_class.sum().values[0]))
 
-# Decision Tree
-st.markdown("---")
-st.subheader("1️⃣ Decision Tree Classifier")
+# Tabs
+tab1, tab2, tab3, tab4 = st.tabs([
+    "1️⃣ Decision Tree",
+    "2️⃣ SVM", 
+    "3️⃣ Ensemble",
+    "4️⃣ Predict"
+])
 
-st.markdown("""
-**Algorithm Explanation:**
-- Creates a tree of decisions based on feature values
-- Each node represents a decision (e.g., "Is feature X > threshold?")
-- Easy to interpret and visualize
-- Handles non-linear relationships naturally
-
-**How it works:**
-1. Selects feature that best splits data
-2. Creates branches for different values
-3. Repeats recursively
-4. Stops when pure nodes or max depth reached
-""")
-
-if st.button("Train Decision Tree", key="dt"):
-    with st.spinner("Training Decision Tree..."):
-        dt = DecisionTreeClassifier(random_state=42, max_depth=5)
-        dt.fit(X_train, y_train)
-        y_pred_dt = dt.predict(X_test)
-        
-        acc_dt = accuracy_score(y_test, y_pred_dt)
+# Tab 1: Decision Tree
+with tab1:
+    st.markdown("### Decision Tree Classifier")
+    
+    dt = load_model('decision_tree')
+    
+    if dt:
+        y_pred_dt = dt.predict(X_test_c)
+        acc_dt = accuracy_score(y_test_c, y_pred_dt)
         
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Accuracy", f"{acc_dt:.4f}")
             st.text("Classification Report:")
-            report = classification_report(y_test, y_pred_dt, target_names=['LOW-Tc', 'HIGH-Tc'])
+            report = classification_report(y_test_c, y_pred_dt, target_names=['LOW-Tc', 'HIGH-Tc'])
             st.text(report)
         
         with col2:
-            cm = confusion_matrix(y_test, y_pred_dt)
+            cm = confusion_matrix(y_test_c, y_pred_dt)
             fig = ff.create_annotated_heatmap(cm, x=['LOW-Tc', 'HIGH-Tc'], y=['LOW-Tc', 'HIGH-Tc'],
                                              colorscale='Blues')
             fig.update_layout(title="Confusion Matrix", xaxis_title="Predicted", yaxis_title="Actual")
             st.plotly_chart(fig, use_container_width=True)
         
         # Tree visualization
+        from sklearn.tree import plot_tree
         fig, ax = plt.subplots(figsize=(20, 10))
         plot_tree(dt, filled=True, feature_names=X.columns, class_names=['LOW-Tc', 'HIGH-Tc'],
                  max_depth=3, ax=ax, fontsize=10)
         plt.title("Decision Tree Structure (Max Depth 3 shown)")
         st.pyplot(fig)
-        
-        pickle.dump(dt, open('decision_tree.pkl', 'wb'))
-        st.success("✅ Model trained and saved!")
 
-# SVM
-st.markdown("---")
-st.subheader("2️⃣ Support Vector Machine (SVM)")
-
-st.markdown("""
-**Algorithm Explanation:**
-- Finds optimal hyperplane that separates classes
-- Maximizes margin between classes
-- Works well in high-dimensional spaces
-- Uses kernel trick for non-linear boundaries
-
-**Key Concept:**
-Imagine a line (or hyperplane in higher dimensions) that best separates HIGH-Tc from LOW-Tc materials,
-with maximum distance to nearest points of each class.
-""")
-
-if st.button("Train SVM", key="svm"):
-    with st.spinner("Training SVM (this may take a moment)..."):
-        svm = SVC(random_state=42, kernel='rbf')
-        svm.fit(X_train, y_train)
-        y_pred_svm = svm.predict(X_test)
-        
-        acc_svm = accuracy_score(y_test, y_pred_svm)
+# Tab 2: SVM
+with tab2:
+    st.markdown("### Support Vector Machine")
+    
+    svm = load_model('svm')
+    
+    if svm:
+        y_pred_svm = svm.predict(X_test_c)
+        acc_svm = accuracy_score(y_test_c, y_pred_svm)
         
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Accuracy", f"{acc_svm:.4f}")
             st.text("Classification Report:")
-            report = classification_report(y_test, y_pred_svm, target_names=['LOW-Tc', 'HIGH-Tc'])
+            report = classification_report(y_test_c, y_pred_svm, target_names=['LOW-Tc', 'HIGH-Tc'])
             st.text(report)
         
         with col2:
-            cm = confusion_matrix(y_test, y_pred_svm)
+            cm = confusion_matrix(y_test_c, y_pred_svm)
             fig = ff.create_annotated_heatmap(cm, x=['LOW-Tc', 'HIGH-Tc'], y=['LOW-Tc', 'HIGH-Tc'],
                                              colorscale='Viridis')
             fig.update_layout(title="Confusion Matrix", xaxis_title="Predicted", yaxis_title="Actual")
             st.plotly_chart(fig, use_container_width=True)
         
-        # SVM hyperplane on 2D PCA - SAFE & OPTIMIZED VERSION
+        # SVM decision boundary on 2D PCA
         st.subheader("Decision Boundary Visualization")
         
-        # Sample data for faster visualization (use subset for boundary plotting)
-        sample_size = min(5000, len(X_train))
-        sample_indices = np.random.choice(len(X_train), sample_size, replace=False)
-        X_train_sample = X_train.iloc[sample_indices]
-        y_train_sample = y_train.iloc[sample_indices]
+        sample_size = min(5000, len(X_train_c))
+        sample_indices = np.random.choice(len(X_train_c), sample_size, replace=False)
+        X_train_sample = X_train_c.iloc[sample_indices]
+        y_train_sample = y_train_c.iloc[sample_indices]
         
         pca = PCA(n_components=2)
         X_train_pca = pca.fit_transform(X_train_sample)
-        svm_pca = SVC(random_state=42, kernel='rbf')
-        svm_pca.fit(X_train_pca, y_train_sample)
         
-        # Create reasonable mesh grid (200x200 max)
+        from sklearn.svm import SVC
+        svm_pca = SVC(random_state=42, kernel='rbf')
+        svm_pca.fit(X_train_pca, y_train_sample.values.ravel())
+        
         x_min, x_max = X_train_pca[:, 0].min() - 0.5, X_train_pca[:, 0].max() + 0.5
         y_min, y_max = X_train_pca[:, 1].min() - 0.5, X_train_pca[:, 1].max() + 0.5
         
-        # Fixed grid size of 200x200 (safe for all datasets)
         x_grid = np.linspace(x_min, x_max, 200)
         y_grid = np.linspace(y_min, y_max, 200)
         xx, yy = np.meshgrid(x_grid, y_grid)
@@ -168,11 +142,9 @@ if st.button("Train SVM", key="svm"):
         Z = Z.reshape(xx.shape)
         
         fig, ax = plt.subplots(figsize=(10, 8))
-        contour = ax.contourf(xx, yy, Z, alpha=0.4, cmap='RdYlBu', levels=2)
+        ax.contourf(xx, yy, Z, alpha=0.4, cmap='RdYlBu', levels=2)
         
-        # Convert DataFrame to array for matplotlib
         y_train_array = y_train_sample.values.ravel()
-        
         scatter = ax.scatter(X_train_pca[:, 0], X_train_pca[:, 1], c=y_train_array, 
                            cmap='RdYlBu', edgecolors='black', s=30, alpha=0.8, linewidth=0.5)
         ax.set_title('SVM Decision Boundary (2D PCA Projection)', fontsize=14, fontweight='bold')
@@ -180,93 +152,77 @@ if st.button("Train SVM", key="svm"):
         ax.set_ylabel('Second Principal Component', fontsize=12)
         ax.grid(True, alpha=0.3)
         
-        # Add colorbar
         cbar = plt.colorbar(scatter, ax=ax)
         cbar.set_label('Class (0=LOW-Tc, 1=HIGH-Tc)', fontsize=10)
         
         st.pyplot(fig)
-        
-        st.info(f"📊 Visualization uses {sample_size:,} samples for clarity and performance")
-        
-        pickle.dump(svm, open('svm.pkl', 'wb'))
-        st.success("✅ Model trained and saved!")
 
-# Ensemble Methods
-st.markdown("---")
-st.subheader("3️⃣ Ensemble Learning")
-
-st.markdown("""
-**Random Forest (Bagging):**
-- Builds multiple decision trees on random subsets
-- Combines predictions by voting
-- Reduces overfitting, more robust
-
-**Gradient Boosting:**
-- Builds trees sequentially
-- Each tree corrects errors of previous ones
-- Often achieves highest accuracy
-""")
-
-if st.button("Train Ensemble Models", key="ensemble"):
-    with st.spinner("Training Random Forest and Gradient Boosting..."):
-        # Random Forest
-        rf = RandomForestClassifier(random_state=42, n_estimators=100)
-        rf.fit(X_train, y_train)
-        y_pred_rf = rf.predict(X_test)
-        acc_rf = accuracy_score(y_test, y_pred_rf)
-        
-        # Gradient Boosting
-        gb = GradientBoostingClassifier(random_state=42, n_estimators=100)
-        gb.fit(X_train, y_train)
-        y_pred_gb = gb.predict(X_test)
-        acc_gb = accuracy_score(y_test, y_pred_gb)
+# Tab 3: Ensemble
+with tab3:
+    st.markdown("### 🏆 Ensemble Learning")
+    
+    rf = load_model('random_forest')
+    gb = load_model('gradient_boosting')
+    
+    if rf and gb:
+        y_pred_rf = rf.predict(X_test_c)
+        y_pred_gb = gb.predict(X_test_c)
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.subheader("Random Forest")
+            acc_rf = accuracy_score(y_test_c, y_pred_rf)
             st.metric("Accuracy", f"{acc_rf:.4f}")
             st.text("Classification Report:")
-            st.text(classification_report(y_test, y_pred_rf, target_names=['LOW-Tc', 'HIGH-Tc']))
+            st.text(classification_report(y_test_c, y_pred_rf, target_names=['LOW-Tc', 'HIGH-Tc']))
         
         with col2:
             st.subheader("Gradient Boosting")
+            acc_gb = accuracy_score(y_test_c, y_pred_gb)
             st.metric("Accuracy", f"{acc_gb:.4f}")
             st.text("Classification Report:")
-            st.text(classification_report(y_test, y_pred_gb, target_names=['LOW-Tc', 'HIGH-Tc']))
+            st.text(classification_report(y_test_c, y_pred_gb, target_names=['LOW-Tc', 'HIGH-Tc']))
         
         # Feature Importance
+        st.subheader("Top 15 Feature Importances")
         importances = rf.feature_importances_
         indices = np.argsort(importances)[::-1][:15]
         
         fig = go.Figure()
         fig.add_trace(go.Bar(x=X.columns[indices], y=importances[indices]))
-        fig.update_layout(title="Top 15 Feature Importances (Random Forest)",
+        fig.update_layout(title="Feature Importances (Random Forest)",
                          xaxis_title="Features", yaxis_title="Importance",
                          xaxis_tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
-        
-        pickle.dump(rf, open('random_forest.pkl', 'wb'))
-        pickle.dump(gb, open('gradient_boosting.pkl', 'wb'))
-        st.success("✅ Models trained and saved!")
 
-# Conclusions
-st.markdown("---")
-st.subheader("📊 Classification Conclusions")
-st.markdown("""
-**Model Comparison:**
-- **Decision Tree:** Fast, interpretable, good for understanding decision logic
-- **SVM:** Powerful for complex boundaries, works well in high dimensions
-- **Random Forest:** Robust, reduces overfitting, provides feature importance
-- **Gradient Boosting:** Often highest accuracy, industry standard
+# Tab 4: Custom Prediction
+with tab4:
+    st.markdown("### 🔮 Custom Input Classification")
+    
+    selected_features = st.multiselect(
+        "Select features to input:",
+        X.columns.tolist(),
+        default=X.columns[:5].tolist()
+    )
+    
+    input_values = {}
+    for feat in selected_features:
+        input_values[feat] = st.number_input(f"Value for {feat}", value=0.0, key=f"class_{feat}")
+    
+    if st.button("Classify Material"):
+        if selected_features:
+            input_array = np.zeros((1, X.shape[1]))
+            for i, feat in enumerate(X.columns):
+                if feat in input_values:
+                    input_array[0, i] = input_values[feat]
+                else:
+                    input_array[0, i] = X[feat].mean()
+            
+            gb = load_model('gradient_boosting')
+            if gb:
+                prediction = gb.predict(input_array)[0]
+                class_name = "HIGH-Tc" if prediction == 1 else "LOW-Tc"
+                st.success(f"Predicted Class: {class_name} (Class {prediction})")
 
-**Business Impact:**
-- Accurate classification helps prioritize R&D investments
-- HIGH-Tc materials get fast-tracked for development
-- Reduces material synthesis costs by 50-70%
-- Accelerates time-to-market for new superconductor applications
-
-**Real-World Use:**
-Research labs use these models to screen thousands of candidate materials,
-identifying the most promising ones for experimental validation.
-""")
+st.success("✅ All models loaded instantly - no training needed!")

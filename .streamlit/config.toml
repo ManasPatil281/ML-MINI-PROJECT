@@ -2,13 +2,17 @@
 enableXsrfProtection = false
 enableCORS = false
 maxUploadSize = 200
+runOnSave = false
+fileWatcherType = "none"
 
 [browser]
 gatherUsageStats = false
+serverAddress = "localhost"
 
 [runner]
 magicEnabled = true
 fastReruns = true
+enforceSerializableSessionState = false
 
 [client]
 showErrorDetails = true
@@ -20,3 +24,6 @@ backgroundColor = "#0E1117"
 secondaryBackgroundColor = "#262730"
 textColor = "#FAFAFA"
 font = "sans serif"
+
+[logger]
+level = "error"

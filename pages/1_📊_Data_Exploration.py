@@ -3,29 +3,29 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from ucimlrepo import fetch_ucirepo
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import os
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from data_loader import get_X, get_y, clear_data_cache
 
 st.set_page_config(page_title="Data Exploration", page_icon="📊", layout="wide")
 
 st.title("📊 Data Exploration & Visualization")
 
-# Load data with caching
-@st.cache_data(show_spinner=False)
-def load_data():
-    """Load and cache the dataset"""
-    superconductivity_data = fetch_ucirepo(id=464)
-    X = superconductivity_data.data.features
-    y = superconductivity_data.data.targets
-    X = X.fillna(X.mean())
-    y = y.fillna(y.mean())
-    return X, y, superconductivity_data
+# Sidebar cache management
+if st.sidebar.button("🗑️ Clear Data Cache"):
+    clear_data_cache()
+    st.rerun()
 
-with st.spinner("Loading dataset... (This happens only once)"):
-    X, y, data_info = load_data()
+# Load data using session state (instant after first load!)
+X = get_X()
+y = get_y()
 
-st.success("✅ Dataset loaded and cached!")
+st.success("✅ Dataset ready!")
 
 st.markdown("""
 ## Understanding the Dataset
