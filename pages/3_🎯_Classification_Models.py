@@ -6,6 +6,7 @@ import os
 import sys
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 
@@ -224,5 +225,103 @@ with tab4:
                 prediction = gb.predict(input_array)[0]
                 class_name = "HIGH-Tc" if prediction == 1 else "LOW-Tc"
                 st.success(f"Predicted Class: {class_name} (Class {prediction})")
+    
+# Custom Input Prediction
+st.markdown("---")
+st.subheader("🔮 Custom Input Prediction")
+
+st.markdown("Select a preset material type or enter custom values:")
+
+# Preset material types
+preset_choice = st.selectbox(
+    "Choose Preset Material Type:",
+    ["Custom Input", "Low-Tc Material (< 20K)", "Medium-Tc Material (20-77K)", "High-Tc Material (> 77K)"]
+)
+
+# Set default values based on preset
+if preset_choice == "Low-Tc Material (< 20K)":
+    default_vals = [80.0, 120.0, 4.0, 30.0, 8.0, 15.0, 2.0, 20.0, 25.0]
+elif preset_choice == "Medium-Tc Material (20-77K)":
+    default_vals = [120.0, 160.0, 6.0, 60.0, 12.0, 30.0, 3.0, 35.0, 45.0]
+elif preset_choice == "High-Tc Material (> 77K)":
+    default_vals = [150.0, 200.0, 8.0, 90.0, 18.0, 50.0, 4.0, 50.0, 60.0]
+else:
+    default_vals = [100.0, 150.0, 5.0, 50.0, 10.0, 20.0, 2.0, 30.0, 40.0]
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    input_feat_1 = st.number_input("Mean Atomic Mass", value=default_vals[0], min_value=0.0, max_value=300.0, key="class_1")
+    input_feat_2 = st.number_input("Mean Atomic Radius", value=default_vals[1], min_value=0.0, max_value=300.0, key="class_2")
+    input_feat_3 = st.number_input("Mean Density", value=default_vals[2], min_value=0.0, max_value=20.0, key="class_3")
+
+with col2:
+    input_feat_4 = st.number_input("Mean Electron Affinity", value=default_vals[3], min_value=0.0, max_value=200.0, key="class_4")
+    input_feat_5 = st.number_input("Mean Fusion Heat", value=default_vals[4], min_value=0.0, max_value=50.0, key="class_5")
+    input_feat_6 = st.number_input("Mean Thermal Conductivity", value=default_vals[5], min_value=0.0, max_value=500.0, key="class_6")
+
+with col3:
+    input_feat_7 = st.number_input("Mean Valence", value=default_vals[6], min_value=0.0, max_value=10.0, key="class_7")
+    input_feat_8 = st.number_input("Entropy Atomic Mass", value=default_vals[7], min_value=0.0, max_value=100.0, key="class_8")
+    input_feat_9 = st.number_input("Entropy Atomic Radius", value=default_vals[8], min_value=0.0, max_value=100.0, key="class_9")
+if st.button("🎯 Classify Material", type="primary"):
+    # Create input array
+    custom_input = np.zeros(81)
+    custom_input[0] = input_feat_1
+    custom_input[1] = input_feat_2
+    custom_input[2] = input_feat_3
+    custom_input[3] = input_feat_4
+    custom_input[4] = input_feat_5
+    custom_input[5] = input_feat_6
+    custom_input[6] = input_feat_7
+    custom_input[7] = input_feat_8
+    custom_input[8] = input_feat_9
+
+    # Fill remaining features with mean values (use training split available as X_train_c)
+    for i in range(9, 81):
+        custom_input[i] = X_train_c.iloc[:, i].mean()
+
+    custom_input = custom_input.reshape(1, -1)
+
+    # Ensure a scaler and model are available; try to load commonly named objects or fallback to fitting a scaler
+    model = load_model('gradient_boosting') or load_model('random_forest') or load_model('decision_tree')
+
+    # If no scaler was loaded earlier, try to load one via load_model or fit a new StandardScaler on X_train_c
+    scaler = None
+    try:
+        scaler = load_model('scaler')
+    except Exception:
+        scaler = None
+
+    if scaler is None:
+        scaler = StandardScaler().fit(X_train_c)
+
+    custom_input_scaled = scaler.transform(custom_input)
+
+    # Make prediction
+    if model is None:
+        st.error("No classification model found (expected gradient_boosting / random_forest / decision_tree).")
+    else:
+        predicted_class = model.predict(custom_input_scaled)[0]
+
+        # Show prediction
+        if predicted_class == 1:
+            st.success("### 🔥 High Temperature Superconductor")
+            st.info("This material is predicted to have a critical temperature above the median (~55K)")
+        else:
+            st.warning("### ❄️ Low Temperature Superconductor")
+            st.info("This material is predicted to have a critical temperature below the median (~55K)")
+
+        # Show probability if available
+        if hasattr(model, 'predict_proba'):
+            proba = model.predict_proba(custom_input_scaled)[0]
+            col1, col2 = st.columns(2)
+            col1.metric("Low Tc Probability", f"{proba[0]*100:.1f}%")
+            col2.metric("High Tc Probability", f"{proba[1]*100:.1f}%")
+
+        # Show preset info
+        if preset_choice != "Custom Input":
+            st.info(f"💡 You selected: **{preset_choice}**")
+        st.info(f"💡 You selected: **{preset_choice}**")
 
 st.success("✅ All models loaded instantly - no training needed!")

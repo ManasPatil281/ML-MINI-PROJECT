@@ -86,31 +86,8 @@ def load_data_once():
             else:
                 st.warning("⏳ Loading from UCI Repository (first time only)...")
                 
-                from ucimlrepo import fetch_ucirepo
+           
                 
-                superconductivity_data = fetch_ucirepo(id=DATASET_ID)
-                
-                X = superconductivity_data.data.features
-                y = superconductivity_data.data.targets
-                X = X.fillna(X.mean())
-                y = y.fillna(y.mean())
-                
-                y_class = (y > y.median()).astype(int)
-                
-                st.session_state[SESSION_DATA_KEY] = {
-                    'X': X,
-                    'y': y,
-                    'y_class': y_class,
-                    'metadata': superconductivity_data.metadata,
-                    'variables': superconductivity_data.variables,
-                    'source': 'UCI Repository (online)'
-                }
-                
-                # Save for next time
-                with open('data.pkl', 'wb') as f:
-                    pickle.dump(superconductivity_data, f)
-                
-                st.success(f"✅ Loaded {len(X):,} samples from UCI & saved to data.pkl")
                 
         except Exception as e:
             st.error(f"❌ Error loading data: {str(e)}")

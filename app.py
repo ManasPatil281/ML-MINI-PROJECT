@@ -32,7 +32,7 @@ else:
     st.sidebar.info(f"📡 {data_source}")
 
 # Main page
-st.title("🔬 Superconductivity Prediction - Mini Project")
+st.title("🔬 Superconductivity Prediction - ML Mini Project")
 st.markdown("---")
 
 st.markdown("""
@@ -41,59 +41,77 @@ st.markdown("""
 ### Domain: **Energy & Materials Science**
 
 Superconductivity is a phenomenon where certain materials can conduct electricity without resistance at very low temperatures. 
-This project uses machine learning to predict the critical temperature of superconductors, which has significant societal impact:
+This project uses machine learning to predict the critical temperature of superconductors.
 
-### 🌍 Real-World Applications & Societal Impact
+### 🎯 Project Objectives
 
-1. **Energy Efficiency**
-   - Zero-resistance power transmission reduces energy loss
-   - Can save billions in electricity costs globally
-   - Reduces carbon footprint in power distribution
+This project demonstrates the following machine learning techniques:
 
-2. **Medical Technology**
-   - Essential for MRI machines
-   - Improved medical imaging capabilities
-   - Better healthcare accessibility
-
-3. **Transportation**
-   - Maglev trains using superconducting magnets
-   - Faster, cleaner public transportation
-   - Reduced traffic congestion
-
-4. **Renewable Energy**
-   - Better energy storage systems
-   - More efficient wind turbines
-   - Enhanced solar power systems
+1. **Data Visualization** - Understanding patterns in superconductor properties
+2. **Linear Regression** - Baseline prediction model
+3. **Multivariate Non-Linear Regression** - Polynomial regression for improved accuracy
+4. **Decision Trees** - Classification with interpretable rules
+5. **Support Vector Machine (SVM)** - Robust classification with kernel methods
+6. **Ensemble Learning** - Random Forest and Gradient Boosting
+7. **K-Means Clustering** - Material grouping and segmentation
+8. **DBSCAN** - Density-based clustering and outlier detection
+9. **PCA/SVD** - Dimensionality reduction for feature analysis
 
 ### 📊 Dataset Information
 
-- **Source:** UCI Machine Learning Repository / Local CSV
+- **Source:** UCI Machine Learning Repository
 - **Samples:** 21,263 superconductors
 - **Features:** 81 material properties
 - **Target:** Critical Temperature (Tc) in Kelvin
 
-### 🎯 Project Objectives
+### 🌍 Real-World Applications
 
-This project demonstrates various machine learning techniques:
-- Data Visualization & Exploration
-- Regression Models (Linear, Polynomial, Ensemble)
-- Classification Models (Decision Trees, SVM, Ensemble)
-- Clustering Algorithms (K-Means, DBSCAN)
-- Dimensionality Reduction (PCA, SVD)
-- MLOps Best Practices
+**Energy Efficiency**
+- Zero-resistance power transmission
+- Reduced energy loss in electrical grids
+- Lower carbon footprint
+
+**Medical Technology**
+- MRI machines
+- Advanced medical imaging
+- Better healthcare delivery
+
+**Transportation**
+- Maglev trains
+- Faster, cleaner transport
+- Reduced traffic congestion
+
+**Renewable Energy**
+- Improved energy storage
+- Efficient power generation
+- Enhanced solar/wind systems
 
 ### 📱 Navigation
 
 Use the sidebar to navigate through different sections:
-- **Home:** Project overview (current page)
-- **Data Exploration:** Dataset analysis and visualizations
-- **Regression Models:** Predict critical temperature
-- **Classification Models:** Classify superconductor types
-- **Clustering Analysis:** Group similar materials
-- **Dimensionality Reduction:** Feature analysis
-- **Model Comparison:** Performance metrics
-- **MLOps Tools:** Tool comparison and workflow
-- **Conclusion:** Key findings and recommendations
+
+**Analysis Pages:**
+- 📊 **Data Exploration** - Dataset visualization and statistics
+- 📈 **Regression Models** - Linear and Multivariate Non-Linear Regression
+- 🎯 **Classification Models** - Decision Trees, SVM, Ensemble Methods
+- 🔍 **Clustering Analysis** - K-Means and DBSCAN
+- 📉 **Dimensionality Reduction** - PCA and SVD analysis
+- ⚖️ **Model Comparison** - Performance metrics comparison
+- 📋 **Conclusion** - Key findings and recommendations
+
+### 🔬 Methodology
+
+1. **Data Collection:** Sourcing data from the UCI Machine Learning Repository.
+2. **Data Preprocessing:** Cleaning and preparing data for analysis.
+3. **Exploratory Data Analysis (EDA):** Visualizing data distributions and relationships.
+4. **Feature Engineering:** Creating new features to improve model performance.
+5. **Model Training:** Training various machine learning models on the data.
+6. **Model Evaluation:** Comparing model performance using metrics like RMSE, MAE, and R².
+7. **Hyperparameter Tuning:** Optimizing model parameters for better accuracy.
+8. **Final Model Selection:** Choosing the best-performing model for deployment.
+9. **Deployment:** Setting up the model for predictions on new data.
+10. **Monitoring & Maintenance:** Regularly updating the model and retraining as necessary.
+
 """)
 
 st.markdown("---")

@@ -23,77 +23,93 @@ from sklearn.ensemble import (
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import Pipeline
+import warnings
+warnings.filterwarnings('ignore')
 
 print("=" * 60)
-print("TRAINING ALL MODELS - RUN THIS ONCE!")
+print("TRAINING ALL MODELS FOR SUPERCONDUCTIVITY PREDICTION")
 print("=" * 60)
 
-# Load data from train.csv
-print("\n1. Loading data from train.csv...")
-if not os.path.exists('train.csv'):
-    print("❌ ERROR: train.csv not found!")
-    print("Please ensure train.csv is in the project directory")
-    exit(1)
-
+# Load data
+print("\n1. Loading dataset...")
 df = pd.read_csv('train.csv')
-print(f"✅ Loaded {len(df):,} samples")
+print(f"   ✓ Loaded {len(df)} samples with {len(df.columns)} features")
 
-# Separate features and target
-if 'critical_temp' not in df.columns:
-    print("❌ ERROR: 'critical_temp' column not found!")
-    print("Available columns:", df.columns.tolist())
-    exit(1)
-
+# Prepare features and target
 X = df.drop('critical_temp', axis=1)
-y = df[['critical_temp']]
-X = X.fillna(X.mean())
-y = y.fillna(y.mean())
+y = df['critical_temp']
 
-# Create classification target
-y_class = (y > y.median()).astype(int)
+# Train-test split
+print("\n2. Splitting data (80-20)...")
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+print(f"   ✓ Training set: {len(X_train)} samples")
+print(f"   ✓ Test set: {len(X_test)} samples")
 
-print(f"Features: {X.shape[1]}")
-print(f"Samples: {X.shape[0]:,}")
+# Save splits
+os.makedirs('models', exist_ok=True)
+with open('models/train_test_splits.pkl', 'wb') as f:
+    pickle.dump({
+        'X_train': X_train,
+        'X_test': X_test,
+        'y_train': y_train,
+        'y_test': y_test
+    }, f)
+print("   ✓ Saved train-test splits")
 
-# Split data
-print("\n2. Splitting data...")
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-X_train_c, X_test_c, y_train_c, y_test_c = train_test_split(X, y_class, test_size=0.2, random_state=42)
-
-# Scale data for clustering and neural networks
-print("\n3. Scaling data...")
+# Feature Scaling
+print("\n3. Scaling features...")
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
 X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+with open('models/scaler.pkl', 'wb') as f:
+    pickle.dump(scaler, f)
+print("   ✓ Scaler trained and saved")
 
-# Dictionary to store all models
-models = {}
-
+# =========================================================================
 # REGRESSION MODELS
+# =========================================================================
 print("\n" + "=" * 60)
 print("TRAINING REGRESSION MODELS")
 print("=" * 60)
 
+# Linear Regression
 print("\n4. Training Linear Regression...")
-lr = LinearRegression()
-lr.fit(X_train, y_train)
-models['linear_regression'] = lr
-print("✅ Linear Regression trained")
+linear_model = LinearRegression()
+linear_model.fit(X_train, y_train)
+with open('models/linear_regression.pkl', 'wb') as f:
+    pickle.dump(linear_model, f)
+train_score = linear_model.score(X_train, y_train)
+test_score = linear_model.score(X_test, y_test)
+print(f"   ✓ R² Score (Train): {train_score:.3f}")
+print(f"   ✓ R² Score (Test): {test_score:.3f}")
 
+# Ridge Regression
 print("\n5. Training Ridge Regression...")
-ridge = Ridge(alpha=1.0)
-ridge.fit(X_train, y_train)
-models['ridge_regression'] = ridge
-print("✅ Ridge Regression trained")
+ridge_model = Ridge(alpha=1.0)
+ridge_model.fit(X_train, y_train)
+with open('models/ridge_regression.pkl', 'wb') as f:
+    pickle.dump(ridge_model, f)
+train_score = ridge_model.score(X_train, y_train)
+test_score = ridge_model.score(X_test, y_test)
+print(f"   ✓ R² Score (Train): {train_score:.3f}")
+print(f"   ✓ R² Score (Test): {test_score:.3f}")
 
+# Polynomial Regression
 print("\n6. Training Polynomial Regression (degree=2)...")
-poly = PolynomialFeatures(degree=2)
-X_poly = poly.fit_transform(X_train)
-lr_poly = LinearRegression()
-lr_poly.fit(X_poly, y_train)
-models['poly_regression'] = lr_poly
-models['poly_features'] = poly
-print("✅ Polynomial Regression trained")
+poly_model = Pipeline([
+    ('poly', PolynomialFeatures(degree=2)),
+    ('linear', LinearRegression())
+])
+poly_model.fit(X_train, y_train)
+with open('models/polynomial_regression.pkl', 'wb') as f:
+    pickle.dump(poly_model, f)
+train_score = poly_model.score(X_train, y_train)
+test_score = poly_model.score(X_test, y_test)
+print(f"   ✓ R² Score (Train): {train_score:.3f}")
+print(f"   ✓ R² Score (Test): {test_score:.3f}")
 
 print("\n7. Training Random Forest Regressor...")
 rf_reg = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
@@ -119,95 +135,122 @@ print("\n" + "=" * 60)
 print("TRAINING CLASSIFICATION MODELS")
 print("=" * 60)
 
+# Create binary classification target (high temp vs low temp)
+y_class_train = (y_train > y_train.median()).astype(int)
+y_class_test = (y_test > y_test.median()).astype(int)
+
+# Decision Tree
 print("\n10. Training Decision Tree Classifier...")
-dt = DecisionTreeClassifier(random_state=42, max_depth=5)
-dt.fit(X_train_c, y_train_c)
-models['decision_tree'] = dt
-print("✅ Decision Tree trained")
+dt_model = DecisionTreeClassifier(random_state=42, max_depth=10)
+dt_model.fit(X_train_scaled, y_class_train)
+with open('models/decision_tree.pkl', 'wb') as f:
+    pickle.dump(dt_model, f)
+train_acc = dt_model.score(X_train_scaled, y_class_train)
+test_acc = dt_model.score(X_test_scaled, y_class_test)
+print(f"   ✓ Accuracy (Train): {train_acc:.3f}")
+print(f"   ✓ Accuracy (Test): {test_acc:.3f}")
 
-print("\n11. Training SVM Classifier (this may take time)...")
-svm = SVC(random_state=42, kernel='rbf')
-svm.fit(X_train_c, y_train_c.values.ravel())
-models['svm'] = svm
-print("✅ SVM trained")
+# SVM
+print("\n11. Training SVM Classifier...")
+svm_model = SVC(kernel='rbf', random_state=42)
+svm_model.fit(X_train_scaled, y_class_train)
+with open('models/svm.pkl', 'wb') as f:
+    pickle.dump(svm_model, f)
+train_acc = svm_model.score(X_train_scaled, y_class_train)
+test_acc = svm_model.score(X_test_scaled, y_class_test)
+print(f"   ✓ Accuracy (Train): {train_acc:.3f}")
+print(f"   ✓ Accuracy (Test): {test_acc:.3f}")
 
+# Random Forest
 print("\n12. Training Random Forest Classifier...")
-rf = RandomForestClassifier(random_state=42, n_estimators=100)
-rf.fit(X_train_c, y_train_c.values.ravel())
-models['random_forest'] = rf
-print("✅ Random Forest Classifier trained")
+rf_model = RandomForestClassifier(random_state=42, n_estimators=100)
+rf_model.fit(X_train_scaled, y_class_train)
+with open('models/random_forest.pkl', 'wb') as f:
+    pickle.dump(rf_model, f)
+train_acc = rf_model.score(X_train_scaled, y_class_train)
+test_acc = rf_model.score(X_test_scaled, y_class_test)
+print(f"   ✓ Accuracy (Train): {train_acc:.3f}")
+print(f"   ✓ Accuracy (Test): {test_acc:.3f}")
 
+# Gradient Boosting
 print("\n13. Training Gradient Boosting Classifier...")
-gb = GradientBoostingClassifier(random_state=42, n_estimators=100)
-gb.fit(X_train_c, y_train_c.values.ravel())
-models['gradient_boosting'] = gb
-print("✅ Gradient Boosting Classifier trained")
+gb_model = GradientBoostingClassifier(n_estimators=100, random_state=42)
+gb_model.fit(X_train_scaled, y_class_train)
+with open('models/gradient_boosting.pkl', 'wb') as f:
+    pickle.dump(gb_model, f)
+train_acc = gb_model.score(X_train_scaled, y_class_train)
+test_acc = gb_model.score(X_test_scaled, y_class_test)
+print(f"   ✓ Accuracy (Train): {train_acc:.3f}")
+print(f"   ✓ Accuracy (Test): {test_acc:.3f}")
 
+# =========================================================================
 # CLUSTERING MODELS
+# =========================================================================
 print("\n" + "=" * 60)
 print("TRAINING CLUSTERING MODELS")
 print("=" * 60)
 
-print("\n14. Training K-Means Clustering...")
-kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-kmeans.fit(X_scaled)
-models['kmeans'] = kmeans
-print("✅ K-Means trained")
+# K-Means (k=3)
+print("\n14. Training K-Means Clustering (k=3)...")
+kmeans_3 = KMeans(n_clusters=3, random_state=42)
+kmeans_3.fit(X_train_scaled)
+with open('models/kmeans_3.pkl', 'wb') as f:
+    pickle.dump(kmeans_3, f)
+print(f"   ✓ Trained with {kmeans_3.n_clusters} clusters")
 
-print("\n15. Training DBSCAN Clustering...")
+# K-Means (k=5)
+print("\n15. Training K-Means Clustering (k=5)...")
+kmeans_5 = KMeans(n_clusters=5, random_state=42)
+kmeans_5.fit(X_train_scaled)
+with open('models/kmeans_5.pkl', 'wb') as f:
+    pickle.dump(kmeans_5, f)
+print(f"   ✓ Trained with {kmeans_5.n_clusters} clusters")
+
+# DBSCAN
+print("\n16. Training DBSCAN Clustering...")
 dbscan = DBSCAN(eps=0.5, min_samples=5)
-dbscan.fit(X_scaled)
-models['dbscan'] = dbscan
-print("✅ DBSCAN trained")
+dbscan.fit(X_train_scaled)
+with open('models/dbscan.pkl', 'wb') as f:
+    pickle.dump(dbscan, f)
+n_clusters = len(set(dbscan.labels_)) - (1 if -1 in dbscan.labels_ else 0)
+n_noise = list(dbscan.labels_).count(-1)
+print(f"   ✓ Found {n_clusters} clusters")
+print(f"   ✓ Noise points: {n_noise}")
 
+# =========================================================================
 # DIMENSIONALITY REDUCTION
+# =========================================================================
 print("\n" + "=" * 60)
-print("TRAINING DIMENSIONALITY REDUCTION MODELS")
+print("TRAINING DIMENSIONALITY REDUCTION")
 print("=" * 60)
 
-print("\n16. Training PCA...")
-pca = PCA(n_components=10)
-pca.fit(X_scaled)
-models['pca'] = pca
-print("✅ PCA trained")
+# PCA
+print("\n17. Training PCA (10 components)...")
+pca = PCA(n_components=10, random_state=42)
+pca.fit(X_train_scaled)
+with open('models/pca.pkl', 'wb') as f:
+    pickle.dump(pca, f)
+variance_ratio = pca.explained_variance_ratio_.sum()
+print(f"   ✓ Variance retained: {variance_ratio:.3%}")
 
-print("\n17. Training SVD...")
+# SVD
+print("\n18. Training SVD (10 components)...")
 svd = TruncatedSVD(n_components=10, random_state=42)
-svd.fit(X_scaled)
-models['svd'] = svd
-print("✅ SVD trained")
+svd.fit(X_train_scaled)
+with open('models/svd.pkl', 'wb') as f:
+    pickle.dump(svd, f)
+variance_ratio = svd.explained_variance_ratio_.sum()
+print(f"   ✓ Variance retained: {variance_ratio:.3%}")
 
-# SAVE ALL MODELS
-print("\n" + "=" * 60)
-print("SAVING ALL MODELS")
-print("=" * 60)
-
-for name, model in models.items():
-    filename = f'{name}.pkl'
-    with open(filename, 'wb') as f:
-        pickle.dump(model, f)
-    print(f"✅ Saved {filename}")
-
-# Save train/test splits for consistent evaluation
-print("\n18. Saving train/test splits...")
-splits = {
-    'X_train': X_train,
-    'X_test': X_test,
-    'y_train': y_train,
-    'y_test': y_test,
-    'X_train_c': X_train_c,
-    'X_test_c': X_test_c,
-    'y_train_c': y_train_c,
-    'y_test_c': y_test_c,
-    'X_scaled': X_scaled
-}
-with open('train_test_splits.pkl', 'wb') as f:
-    pickle.dump(splits, f)
-print("✅ Saved train_test_splits.pkl")
+# Save classification labels
+with open('models/classification_labels.pkl', 'wb') as f:
+    pickle.dump({
+        'y_class_train': y_class_train,
+        'y_class_test': y_class_test
+    }, f)
 
 print("\n" + "=" * 60)
-print("✅ ALL MODELS TRAINED AND SAVED SUCCESSFULLY!")
+print("✅ ALL MODELS TRAINED SUCCESSFULLY!")
 print("=" * 60)
+print(f"\nModels saved in: {os.path.abspath('models')}")
 print("\nYou can now run: streamlit run app.py")
-print("All models will LOAD INSTANTLY (no retraining needed)")
-print("=" * 60)
